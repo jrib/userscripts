@@ -2,7 +2,6 @@
 // @name        Clip all coupons at wegmans.com
 // @namespace   https://github.com/jrib/userscripts/
 // @match       https://shop.wegmans.com/shop/coupons
-// @require     https://gist.githubusercontent.com/jrib/22d6dc3c55b768910bc5bb4e6d2ddf2f/raw/debc0e6d4d537ac228d1d71f44b1162979a5278c/waitForKeyElements.js
 // @grant       none
 // @version     1.0
 // @author      jrib
@@ -11,6 +10,74 @@
 // ==/UserScript==
 
 (function() {
+  // https://gist.githubusercontent.com/jrib/22d6dc3c55b768910bc5bb4e6d2ddf2f/raw/debc0e6d4d537ac228d1d71f44b1162979a5278c/waitForKeyElements.js
+  // inlined due to greasyfork @require restriction
+  function waitForKeyElements (
+      selectorTxt,    /* Required: The selector string that
+                          specifies the desired element(s).
+                      */
+      actionFunction, /* Required: The code to run when elements are
+                          found. It is passed a jNode to the matched
+                          element.
+                      */
+      bWaitOnce      /* Optional: If false, will continue to scan for
+                          new elements even after the first match is
+                          found.
+                      */
+  ) {
+      var targetNodes, btargetsFound;
+      targetNodes = document.querySelectorAll(selectorTxt);
+
+      if (targetNodes  &&  targetNodes.length > 0) {
+          btargetsFound = true;
+          /*--- Found target node(s).  Go through each and act if they
+              are new.
+          */
+          targetNodes.forEach(function(element) {
+              var alreadyFound = element.dataset.found == 'alreadyFound' ? 'alreadyFound' : false;
+
+              if (!alreadyFound) {
+                  //--- Call the payload function.
+                  var cancelFound     = actionFunction (element);
+                  if (cancelFound)
+                      btargetsFound   = false;
+                  else
+                      element.dataset.found = 'alreadyFound';
+              }
+          } );
+      }
+      else {
+          btargetsFound = false;
+      }
+
+      //--- Get the timer-control variable for this selector.
+      var controlObj  = waitForKeyElements.controlObj  ||  {};
+      var controlKey  = selectorTxt.replace (/[^\w]/g, "_");
+      var timeControl = controlObj [controlKey];
+
+      //--- Now set or clear the timer as appropriate.
+      if (btargetsFound  &&  bWaitOnce  &&  timeControl) {
+          //--- The only condition where we need to clear the timer.
+          clearInterval (timeControl);
+          delete controlObj [controlKey];
+      }
+      else {
+          //--- Set a timer, if needed.
+          if ( ! timeControl) {
+              timeControl = setInterval ( function () {
+                      waitForKeyElements (    selectorTxt,
+                                              actionFunction,
+                                              bWaitOnce
+                                          );
+                  },
+                  300
+              );
+              controlObj [controlKey] = timeControl;
+          }
+      }
+      waitForKeyElements.controlObj   = controlObj;
+  }
+
   // https://github.com/greasemonkey/gm4-polyfill/blob/master/gm4-polyfill.js#L33
   function addCss(aCss) {
     let head = document.getElementsByTagName('head')[0];
